@@ -4,8 +4,6 @@
 # TODO refactor when more use cases are added
 
 import logging
-from typing import List
-from aegis.domain.models import Vulnerability
 from aegis.domain.state import AuditState, AuditStatus
 from aegis.domain.exceptions import SecurityAgentError
 from aegis.ports.llm import ILlmClient
@@ -44,7 +42,7 @@ class SecurityAuditorUseCase:
                 logger.info("No suspicious locations found. Audit complete.")
                 state.transition_to(AuditStatus.COMPLETED)
                 return state
-            
+
             # 2. Analyzing
             state.transition_to(AuditStatus.ANALYZING)
             context = f"Target Repository: {target_repo}\nFound {len(suspicious_locations)} potential sinks."
@@ -61,7 +59,7 @@ class SecurityAuditorUseCase:
             if not state.identified_vulnerabilities:
                 state.transition_to(AuditStatus.COMPLETED)
                 return state
-            
+
             # 3. Verify in the sandbox
             # TODO this is the tricky part, look for pattern for something like this
             state.transition_to(AuditStatus.VERIFYING)
@@ -96,13 +94,13 @@ class SecurityAuditorUseCase:
             self.sandbox.teardown()
             state.transition_to(AuditStatus.COMPLETED)
             return state
-        
+
         # No teardown here if I can make the agent "recover"?
         except SecurityAgentError as e:
             logger.error(f"Domain error during audit: {str(e)}")
             state.transition_to(AuditStatus.FAILED)
             return state
-        
+
         # TODO see if I can expand Exception Handling if this is thrown too many times:
         except Exception as e:
             logger.critical(f"Unexpected infrastructure failure: {str(e)}")

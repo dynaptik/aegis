@@ -1,6 +1,5 @@
 # tests/application/test_use_cases.py
 
-import pytest
 from typing import List, Type
 from pydantic import BaseModel
 from aegis.domain.models import Vulnerability, CodeLocation, Severity, TaintPath
@@ -16,10 +15,10 @@ from aegis.application.use_cases import SecurityAuditorUseCase
 class MockScanner(ICodeScanner):
     def find_reference(self, symbol_name: str, file_path: str) -> List[CodeLocation]:
         return []
-    
+
     def get_snippet(self, file_path: str, start_line: int, end_line: int) -> CodeLocation:
         pass
-    
+
     def execute_semantic_query(self, query: str) -> List[CodeLocation]:
         # Pretending some SQL weirdness was found
         return [
@@ -30,7 +29,7 @@ class MockScanner(ICodeScanner):
                 snippet="cursor.execute(f'SELECT * FROM users WHERE id = {user_input}')"
             )
         ]
-    
+
 class MockLlmClient(ILlmClient):
     def analyze_code_for_vulnerabilities(self, code_snippet: str, context: str) -> List[Vulnerability]:
         # Pretending the agent identified a SQLi
@@ -46,10 +45,10 @@ class MockLlmClient(ILlmClient):
                 is_verified=False
             )
         ]
-    
+
     def generate_exploit_script(self, vulnerability: Vulnerability, target_info: str) -> str:
         return "import requests; requests.get('http://target/id?=1 OR 1=1')" # lets keep it simple
-    
+
     def ask_structured(self, prompt: str, response_model: Type[BaseModel]) -> BaseModel:
         pass
 
@@ -60,13 +59,13 @@ class MockSandbox(IExploitSandbox):
 
     def setup_environment(self, repo_url: str, commit_hash: str) -> bool:
         return True
-    
+
     def run_exploit(self, exploit_code: str, timeout_seconds: int = 30) -> ExecutionResult:
         # Pretending the exploit worked
         if self.should_succeed:
             return ExecutionResult(success=True, exit_code=0, stdout="Exploit worked!", stderr="")
         return ExecutionResult(success=False, exit_code=1, stdout="", stderr="Exploit failed.")
-    
+
     def teardown(self) -> None:
         self.teardown_called = True
 
@@ -106,7 +105,7 @@ def test_audit_loop_verification_fails():
 
     # Act
     final_state = use_case.run_audit(target_repo="https://github.com/fake/repo", semantic_query="find sql injection")
-    
+
     # Assert
     assert final_state.status == AuditStatus.COMPLETED
     assert len(final_state.identified_vulnerabilities) == 1

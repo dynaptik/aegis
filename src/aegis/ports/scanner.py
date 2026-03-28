@@ -12,14 +12,11 @@ class ICodeScanner(ABC):
     @abstractmethod
     def find_reference(self, symbol_name: str, file_path: str) -> List[CodeLocation]:
         """Find all places where a function or variable is used."""
-        pass
 
     @abstractmethod
     def get_snippet(self, file_path: str, start_line: int, end_line: int) -> CodeLocation:
         """Extract a specific chunk of code."""
-        pass
 
     @abstractmethod
     def execute_semantic_query(self, query: str) -> List[CodeLocation]:
         """Run a advanced query (e.g. a CodeQL taint tracking query)."""
-        pass

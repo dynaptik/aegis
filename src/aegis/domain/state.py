@@ -1,9 +1,9 @@
 # src/domain/state.py
 # "Anemic Domain Model" for now, I need to extend this
 # TODO Add some behavior, error-handling and so on
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List
 from enum import Enum
+from pydantic import BaseModel, Field
 from aegis.domain.models import Vulnerability
 from aegis.domain.exceptions import InvalidStateTransitionError
 
@@ -28,7 +28,7 @@ class AuditState(BaseModel):
     agent_scatchpad: List[str] = Field(default_factory=list)
 
     def add_vulnerability(self, vuln: Vulnerability):
-        self.identified_vulnerabilities.append(vuln)
+        self.identified_vulnerabilities.append(vuln)  # pylint: disable=no-member
 
     def transition_to(self, new_status: AuditStatus):
         # Example business logic: you can't verify if you haven't scanned yet

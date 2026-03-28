@@ -19,14 +19,11 @@ class IExploitSandbox(ABC):
     @abstractmethod
     def setup_environment(self, repo_url: str, commit_hash: str) -> bool:
         """Prepares the target application for testing."""
-        pass
 
     @abstractmethod
     def run_exploit(self, exploit_code: str, timeout_seconds: int = 30) -> ExecutionResult:
         """Executes the generated exploit against the target."""
-        pass
 
     @abstractmethod
     def teardown(self) -> None:
         """Cleans up the sandbox."""
-        pass

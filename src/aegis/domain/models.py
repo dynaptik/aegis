@@ -3,10 +3,9 @@
 # TODO have a AI model analyse this and expand the model
 
 
-from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional
 from enum import Enum
-from aegis.domain.exceptions import InvalidTaintPathError
+from pydantic import BaseModel, Field, model_validator
 
 class Severity(str, Enum):
     LOW = "low"
