@@ -11,3 +11,12 @@ class InvalidStateTransitionError(SecurityAgentError):
 
 class InvalidTaintPathError(SecurityAgentError):
     """Raised when a taint path is logically impossible (e.g. sink before source)."""
+
+class ScannerError(SecurityAgentError):
+    """Raised when the code scanner fails."""
+
+class LlmError(SecurityAgentError):
+    """Raised when LLM interaction fails (API error, malformed response)."""
+
+class SandboxError(SecurityAgentError):
+    """Raised when sandbox operations fail (setup, execution, teardown)."""

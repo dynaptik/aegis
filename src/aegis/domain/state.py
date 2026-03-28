@@ -1,6 +1,4 @@
 # src/domain/state.py
-# "Anemic Domain Model" for now, I need to extend this
-# TODO Add some behavior, error-handling and so on
 from typing import List
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -8,30 +6,35 @@ from aegis.domain.models import Vulnerability
 from aegis.domain.exceptions import InvalidStateTransitionError
 
 class AuditStatus(str, Enum):
-    INIITIALIZED = "initialized"
+    INITIALIZED = "initialized"
     SCANNING = "scanning"
     ANALYZING = "analyzing"
     VERIFYING = "verifying"
     COMPLETED = "completed"
     FAILED = "failed"
 
+_ALLOWED_TRANSITIONS: dict[AuditStatus, set[AuditStatus]] = {
+    AuditStatus.INITIALIZED: {AuditStatus.SCANNING, AuditStatus.FAILED},
+    AuditStatus.SCANNING:    {AuditStatus.ANALYZING, AuditStatus.COMPLETED, AuditStatus.FAILED},
+    AuditStatus.ANALYZING:   {AuditStatus.VERIFYING, AuditStatus.COMPLETED, AuditStatus.FAILED},
+    AuditStatus.VERIFYING:   {AuditStatus.COMPLETED, AuditStatus.FAILED},
+    AuditStatus.COMPLETED:   set(),
+    AuditStatus.FAILED:      set(),
+}
+
 class AuditState(BaseModel):
     """Tracks the current state of the agent's investigation"""
     target_repository: str
-    status: AuditStatus = AuditStatus.INIITIALIZED
-
-    # What the agent has found so far
-    raw_code_snippets: List[str] = Field(default_factory=list)
+    status: AuditStatus = AuditStatus.INITIALIZED
     identified_vulnerabilities: List[Vulnerability] = Field(default_factory=list)
-
-    # Execution trace for the agent's thought process
-    agent_scatchpad: List[str] = Field(default_factory=list)
 
     def add_vulnerability(self, vuln: Vulnerability):
         self.identified_vulnerabilities.append(vuln)  # pylint: disable=no-member
 
-    def transition_to(self, new_status: AuditStatus):
-        # Example business logic: you can't verify if you haven't scanned yet
-        if self.status == AuditStatus.INIITIALIZED and new_status == AuditStatus.VERIFYING:
-            raise InvalidStateTransitionError("Cannot skip straight to verifying from initialized.")
+    def transition_to(self, new_status: AuditStatus) -> None:
+        allowed = _ALLOWED_TRANSITIONS.get(self.status, set())
+        if new_status not in allowed:
+            raise InvalidStateTransitionError(
+                f"Cannot transition from {self.status.value} to {new_status.value}"
+            )
         self.status = new_status

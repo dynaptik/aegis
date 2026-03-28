@@ -6,7 +6,7 @@ from typing import List, Type, TypeVar
 from pydantic import BaseModel, ValidationError
 from anthropic import  Anthropic
 from aegis.domain.models import Vulnerability
-from aegis.domain.exceptions import SecurityAgentError
+from aegis.domain.exceptions import LlmError
 from aegis.ports.llm import ILlmClient
 
 logger = logging.getLogger(__name__)
@@ -65,9 +65,9 @@ class AnthropicAdapter(ILlmClient):
         except ValidationError as e:
             # in case claude hallucinates something malformed, data type or state
             logger.error(f"Claude returned malformed JSON that violated the Domain rules: {e}")
-            raise SecurityAgentError(f"LLM hallucination rejected by Pydantic: {e}") from e
+            raise LlmError(f"LLM hallucination rejected by Pydantic: {e}") from e
         except Exception as e:
-            raise SecurityAgentError(f"Anthropic API failure: {e}") from e
+            raise LlmError(f"Anthropic API failure: {e}") from e
 
     def analyze_code_for_vulnerabilities(self, code_snippet: str, context: str) -> List[Vulnerability]:
         """Implements the port method using our structured json caller"""
