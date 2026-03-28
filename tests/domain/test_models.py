@@ -24,7 +24,7 @@ def test_code_location_invalid_lines():
         end_line=10,
         snippet="def hello():\n    pass"
     )
-        
+
     assert "start_line cannot be greater than end_line" in str(exc_info.value)
 
 def test_vulnerability_creation():
