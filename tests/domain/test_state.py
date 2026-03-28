@@ -70,3 +70,52 @@ def test_early_exit_transitions(start):
     state.status = start
     state.transition_to(AuditStatus.COMPLETED)
     assert state.status == AuditStatus.COMPLETED
+
+
+def _make_vuln(vuln_id, cwe_id, title, severity="high"):
+    from aegis.domain.models import Vulnerability, Severity
+    sev_map = {"low": Severity.LOW, "medium": Severity.MEDIUM,
+               "high": Severity.HIGH, "critical": Severity.CRITICAL}
+    return Vulnerability(id=vuln_id, cwe_id=cwe_id, title=title,
+                         description="d", severity=sev_map[severity])
+
+
+def test_deduplicate_removes_exact_duplicates():
+    state = AuditState(target_repository="repo")
+    state.add_vulnerability(_make_vuln("V-1", "CWE-89", "SQL Injection via id parameter"))
+    state.add_vulnerability(_make_vuln("V-2", "CWE-89", "SQL Injection via id parameter"))
+    removed = state.deduplicate()
+    assert removed == 1
+    assert len(state.identified_vulnerabilities) == 1
+
+
+def test_deduplicate_removes_quote_variants():
+    state = AuditState(target_repository="repo")
+    state.add_vulnerability(_make_vuln("V-1", "CWE-89", "SQL Injection via 'id' parameter"))
+    state.add_vulnerability(_make_vuln("V-2", "CWE-89", "SQL Injection via id parameter"))
+    removed = state.deduplicate()
+    assert removed == 1
+
+
+def test_deduplicate_keeps_highest_severity():
+    state = AuditState(target_repository="repo")
+    state.add_vulnerability(_make_vuln("V-1", "CWE-79", "XSS via v param", severity="medium"))
+    state.add_vulnerability(_make_vuln("V-2", "CWE-79", "XSS via v param", severity="critical"))
+    state.deduplicate()
+    assert state.identified_vulnerabilities[0].severity.value == "critical"
+
+
+def test_deduplicate_preserves_distinct_vulns():
+    state = AuditState(target_repository="repo")
+    state.add_vulnerability(_make_vuln("V-1", "CWE-89", "SQL Injection via id parameter"))
+    state.add_vulnerability(_make_vuln("V-2", "CWE-89", "SQL Injection via password parameter"))
+    state.add_vulnerability(_make_vuln("V-3", "CWE-79", "XSS via v parameter"))
+    removed = state.deduplicate()
+    assert removed == 0
+    assert len(state.identified_vulnerabilities) == 3
+
+
+def test_deduplicate_no_vulns():
+    state = AuditState(target_repository="repo")
+    removed = state.deduplicate()
+    assert removed == 0

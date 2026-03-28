@@ -31,6 +31,26 @@ class AuditState(BaseModel):
     def add_vulnerability(self, vuln: Vulnerability):
         self.identified_vulnerabilities.append(vuln)  # pylint: disable=no-member
 
+    def deduplicate(self) -> int:
+        """Remove duplicate vulnerabilities, keeping the highest severity.
+        Returns the number of duplicates removed."""
+        severity_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+        seen: dict[str, int] = {}
+        unique: list[Vulnerability] = []
+        for vuln in self.identified_vulnerabilities:  # pylint: disable=no-member
+            key = vuln.dedup_key
+            if key in seen:
+                existing_idx = seen[key]
+                existing = unique[existing_idx]
+                if severity_rank.get(vuln.severity.value, 0) > severity_rank.get(existing.severity.value, 0):
+                    unique[existing_idx] = vuln
+            else:
+                seen[key] = len(unique)
+                unique.append(vuln)
+        removed = len(self.identified_vulnerabilities) - len(unique)
+        self.identified_vulnerabilities = unique
+        return removed
+
     def transition_to(self, new_status: AuditStatus) -> None:
         allowed = _ALLOWED_TRANSITIONS.get(self.status, set())
         if new_status not in allowed:

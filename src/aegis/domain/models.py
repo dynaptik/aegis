@@ -42,3 +42,9 @@ class Vulnerability(BaseModel):
     severity: Severity
     taint_path: Optional[TaintPath] = None
     is_verified: bool = Field(default=False, description="True if the sandbox exploit succeeded")
+
+    @property
+    def dedup_key(self) -> str:
+        """Identity key for deduplication: CWE + normalized title."""
+        normalized = self.title.lower().replace("'", "").replace('"', "").split()
+        return f"{self.cwe_id}|{' '.join(normalized)}"

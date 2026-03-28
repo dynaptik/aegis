@@ -41,6 +41,11 @@ class SecurityAuditorUseCase:
                 state.transition_to(AuditStatus.COMPLETED)
                 return state
 
+            removed = state.deduplicate()
+            if removed:
+                logger.info("Deduplicated: removed %d duplicates, %d unique remain",
+                            removed, len(state.identified_vulnerabilities))
+
             self._verify(state, target_repo)
             state.transition_to(AuditStatus.COMPLETED)
             return state
@@ -57,11 +62,12 @@ class SecurityAuditorUseCase:
 
     def _scan(self, state: AuditState, semantic_query: str) -> list[CodeLocation]:
         state.transition_to(AuditStatus.SCANNING)
-        logger.info("Executing semantic query: %s", semantic_query)
+        logger.info("Phase 1/3: Scanning for suspicious code patterns …")
         return self.scanner.execute_semantic_query(semantic_query)
 
     def _analyze(self, state: AuditState, locations: list[CodeLocation], target_repo: str) -> None:
         state.transition_to(AuditStatus.ANALYZING)
+        logger.info("Phase 2/3: Analyzing %d locations with LLM …", len(locations))
         context = f"Target Repository: {target_repo}\nFound {len(locations)} potential sinks."
         for loc in locations:
             findings = self.llm.analyze_code_for_vulnerabilities(
@@ -70,22 +76,30 @@ class SecurityAuditorUseCase:
             )
             for finding in findings:
                 state.add_vulnerability(finding)
+        logger.info("Identified %d potential vulnerabilities", len(state.identified_vulnerabilities))
 
     def _verify(self, state: AuditState, target_repo: str) -> None:
         state.transition_to(AuditStatus.VERIFYING)
+        vulns = state.identified_vulnerabilities
+        logger.info("Phase 3/3: Verifying %d vulnerabilities in sandbox …", len(vulns))
         self.sandbox.setup_environment(repo_url=target_repo, commit_hash="HEAD")
+        verified_count = 0
         try:
-            for vuln in state.identified_vulnerabilities:
-                logger.info("Attempting to verify %s: %s", vuln.cwe_id, vuln.title)
+            for i, vuln in enumerate(vulns, 1):
+                logger.debug("Verifying [%d/%d] %s: %s", i, len(vulns), vuln.cwe_id, vuln.title)
                 exploit_code = self.llm.generate_exploit_script(
                     vulnerability=vuln,
                     target_info=target_repo
                 )
                 result = self.sandbox.run_exploit(exploit_code)
                 if result.success:
-                    logger.warning("VULNERABILITY VERIFIED: %s", vuln.id)
                     vuln.is_verified = True
+                    verified_count += 1
+                elif "is not running" in result.stderr:
+                    logger.error("Sandbox container died — aborting remaining verifications")
+                    break
                 else:
-                    logger.info("Verification failed for %s. Sandbox output: %s", vuln.id, result.stderr)
+                    logger.debug("Verification failed for %s: %s", vuln.id, result.stderr)
         finally:
             self.sandbox.teardown()
+        logger.info("Verification complete: %d/%d confirmed", verified_count, len(vulns))

@@ -20,7 +20,7 @@ class VulnerabilityList(BaseModel):
 class AnthropicAdapter(ILlmClient):
     """Concrete implementation of the llm interface using Claude models."""
     # TODO check if model switching is best located here in a hexa arch
-    def __init__(self, api_key: str, model: str = "claude-4.6-sonnet-latest"):
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
         self.client = Anthropic(api_key=api_key)
         self.model = model
 
@@ -85,16 +85,20 @@ class AnthropicAdapter(ILlmClient):
     def generate_exploit_script(self, vulnerability: Vulnerability, target_info: str) -> str:
         """Implements the port method for raw text generation (code)."""
         prompt = (
-            f"Write a python script to verify this vulnerability: {vulnerability.title} ({vulnerability.cwe_id}).\n"
+            f"Write a SHORT python script to verify this vulnerability: {vulnerability.title} ({vulnerability.cwe_id}).\n"
             f"Description: {vulnerability.description}\n"
             f"Target Information: {target_info}\n\n"
-            "Return ONLY the executable Python code. Do NOT include Markdown formatting or explanations."
+            "CONSTRAINTS:\n"
+            "- Use ONLY the Python standard library (urllib, http, socket, xml, etc). Do NOT use requests or any third-party library.\n"
+            "- Keep the script under 80 lines. Focus on a single, minimal proof-of-concept.\n"
+            "- Print 'VULNERABILITY CONFIRMED' if the exploit succeeds, or 'NOT VULNERABLE' if it fails.\n"
+            "- Return ONLY the executable Python code. Do NOT include Markdown formatting or explanations."
         )
 
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=2048,
-            temperature=0.4, # TODO test what temp is best for codegen
+            max_tokens=4096,
+            temperature=0.4,
             messages=[{"role": "user", "content": prompt}]
         )
 

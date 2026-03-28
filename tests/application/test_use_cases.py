@@ -20,12 +20,12 @@ _DEFAULT_LOCATION = CodeLocation(
     snippet="cursor.execute(f'SELECT * FROM users WHERE id = {user_input}')"
 )
 
-def _make_vuln(vuln_id="VULN-001", snippet="x=1"):
+def _make_vuln(vuln_id="VULN-001", snippet="x=1", title="SQL Injection"):
     loc = CodeLocation(file_path="src/db.py", start_line=10, end_line=12, snippet=snippet)
     return Vulnerability(
         id=vuln_id,
         cwe_id="CWE-89",
-        title="SQL Injection",
+        title=title,
         description="Unsanitized user input in query.",
         severity=Severity.HIGH,
         taint_path=TaintPath(source=loc, sink=loc),
@@ -250,7 +250,7 @@ def test_unexpected_exception_fails_audit():
 #
 def test_multiple_vulns_partial_verification():
     """Three vulns found. Sandbox succeeds for 1st and 3rd, fails for 2nd."""
-    vulns = [_make_vuln(f"VULN-{i}") for i in range(3)]
+    vulns = [_make_vuln(f"VULN-{i}", title=f"SQL Injection via param{i}") for i in range(3)]
 
     call_count = 0
     class PartialSandbox(MockSandbox):
