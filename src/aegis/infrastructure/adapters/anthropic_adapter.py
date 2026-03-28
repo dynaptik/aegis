@@ -102,11 +102,44 @@ class AnthropicAdapter(ILlmClient):
             messages=[{"role": "user", "content": prompt}]
         )
 
-        script = response.content[0].text.strip()
-        # some clean up
-        if script.startswith("```python"):
-            script = script[9:-3].strip()
-        elif script.startswith("```"):
-            script = script[3:-3].strip()
+        script = self._strip_markdown(response.content[0].text)
+        error = self._check_syntax(script)
+        if error:
+            logger.debug("Generated script has syntax error: %s — retrying", error)
+            retry_response = self.client.messages.create(
+                model=self.model,
+                max_tokens=4096,
+                temperature=0.2,
+                messages=[
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": script},
+                    {"role": "user", "content": (
+                        f"This script has a syntax error: {error}\n"
+                        "Fix the error and return ONLY the corrected Python code."
+                    )},
+                ]
+            )
+            script = self._strip_markdown(retry_response.content[0].text)
+            retry_error = self._check_syntax(script)
+            if retry_error:
+                logger.warning("Retry still produced invalid syntax: %s", retry_error)
 
         return script
+
+    @staticmethod
+    def _strip_markdown(text: str) -> str:
+        text = text.strip()
+        if text.startswith("```python"):
+            text = text[9:-3].strip()
+        elif text.startswith("```"):
+            text = text[3:-3].strip()
+        return text
+
+    @staticmethod
+    def _check_syntax(code: str) -> str | None:
+        """Returns the error message if code has a syntax error, None if valid."""
+        try:
+            compile(code, "<exploit>", "exec")
+            return None
+        except SyntaxError as e:
+            return f"line {e.lineno}: {e.msg}"
