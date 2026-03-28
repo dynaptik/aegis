@@ -1,0 +1,3 @@
+{
+    "pylint.path": ["uv", "run", "--group", "dev", "pylint"]
+}

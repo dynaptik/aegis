@@ -15,6 +15,9 @@ dev = [
     "pylint>=3.0.0",
 ]
 
+[tool.pylint.main]
+source-roots = ["src"]
+
 [tool.pylint.messages_control]
 disable = [
     "fixme",

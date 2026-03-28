@@ -61,14 +61,14 @@ class AnthropicAdapter(ILlmClient):
 
             # 4. squeeze it into our domain model
             return response_model.model_validate_json(raw_output)
-        
+
         except ValidationError as e:
             # in case claude hallucinates something malformed, data type or state
             logger.error(f"Claude returned malformed JSON that violated the Domain rules: {e}")
-            raise SecurityAgentError(f"LLM hallucination rejected by Pydantic: {e}")
+            raise SecurityAgentError(f"LLM hallucination rejected by Pydantic: {e}") from e
         except Exception as e:
-            raise SecurityAgentError(f"Anthropic API failure: {e}")
-        
+            raise SecurityAgentError(f"Anthropic API failure: {e}") from e
+
     def analyze_code_for_vulnerabilities(self, code_snippet: str, context: str) -> List[Vulnerability]:
         """Implements the port method using our structured json caller"""
         # TODO refactor this later, also decide if it should be a more narrow focus for vuln classes
@@ -81,7 +81,7 @@ class AnthropicAdapter(ILlmClient):
         # we ask claude for a VulnerabilityList, then extract the list
         result = self.ask_structured(prompt=prompt, response_model=VulnerabilityList)
         return result.vulnerabilities
-    
+
     def generate_exploit_script(self, vulnerability: Vulnerability, target_info: str) -> str:
         """Implements the port method for raw text generation (code)."""
         prompt = (
