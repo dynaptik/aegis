@@ -5,6 +5,7 @@ description = "AEGIS: Agentic Exploit Generation in Isolated Sandboxes"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "anthropic>=0.86.0",
     "pydantic>=2.12.5",
 ]
 
