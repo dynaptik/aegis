@@ -1,6 +1,7 @@
 # tests/domain/test_state.py
 
 import pytest
+from aegis.domain.models import Vulnerability, Severity
 from aegis.domain.state import AuditState, AuditStatus
 from aegis.domain.exceptions import InvalidStateTransitionError
 
@@ -73,7 +74,6 @@ def test_early_exit_transitions(start):
 
 
 def _make_vuln(vuln_id, cwe_id, title, severity="high"):
-    from aegis.domain.models import Vulnerability, Severity
     sev_map = {"low": Severity.LOW, "medium": Severity.MEDIUM,
                "high": Severity.HIGH, "critical": Severity.CRITICAL}
     return Vulnerability(id=vuln_id, cwe_id=cwe_id, title=title,

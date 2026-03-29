@@ -2,7 +2,6 @@
 
 import subprocess
 import textwrap
-from pathlib import Path
 
 import pytest
 from aegis.infrastructure.adapters.grep_scanner import GrepScanner
@@ -62,7 +61,7 @@ class TestGrepScanner:
         scanner = GrepScanner(repo_url=str(fake_repo), clone_dir=str(tmp_path / "clone"))
         locations = scanner.execute_semantic_query(r"eval\(")
 
-        assert locations == []
+        assert not locations
 
     def test_invalid_regex_raises_scanner_error(self, fake_repo, tmp_path):
         scanner = GrepScanner(repo_url=str(fake_repo), clone_dir=str(tmp_path / "clone"))

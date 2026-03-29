@@ -28,7 +28,7 @@ class BaseScanner(ICodeScanner):
         if self._clone_dir:
             target = Path(self._clone_dir)
         else:
-            self._tmp_dir = tempfile.TemporaryDirectory()
+            self._tmp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
             target = Path(self._tmp_dir.name)
 
         logger.info("Cloning %s …", self.repo_url)

@@ -38,6 +38,8 @@ disable = [
     "logging-fstring-interpolation",
     "too-few-public-methods",
     "broad-exception-caught",
+    "protected-access",
+    "redefined-outer-name",
 ]
 
 [tool.pytest.ini_options]

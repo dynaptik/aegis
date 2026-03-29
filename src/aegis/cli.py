@@ -15,11 +15,6 @@ from aegis.infrastructure.adapters.semgrep_scanner import SemgrepScanner
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_PATTERN = (
-    r"\.execute\(|exec\(|eval\(|os\.system\(|subprocess\.\w+\(.*shell\s*=\s*True"
-    r"|pickle\.loads?\(|open\(|\.format\(|urllib\.request\.urlopen\("
-)
-
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -97,12 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("ANTHROPIC_API_KEY environment variable is not set")
         return 1
 
+    query = args.pattern or ""
     if args.scanner == "semgrep":
-        query = args.pattern or "r/python.lang.security"
         scanner = SemgrepScanner(repo_url=args.repo_url, config=query)
     else:
-        query = args.pattern or _DEFAULT_PATTERN
-        scanner = GrepScanner(repo_url=args.repo_url)
+        scanner = GrepScanner(repo_url=args.repo_url, config=query)
 
     llm = AnthropicAdapter(api_key=api_key)
     sandbox = DockerSandbox(network=args.network)

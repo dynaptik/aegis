@@ -2,7 +2,6 @@
 
 from unittest.mock import patch, MagicMock
 
-import pytest
 from aegis.infrastructure.adapters.anthropic_adapter import AnthropicAdapter
 from aegis.domain.models import Vulnerability, Severity
 

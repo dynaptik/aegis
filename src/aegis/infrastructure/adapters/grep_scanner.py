@@ -13,11 +13,21 @@ logger = logging.getLogger(__name__)
 # how many lines of context to capture around a match
 _CONTEXT_LINES = 3
 
+_DEFAULT_PATTERN = (
+    r"\.execute\(|exec\(|eval\(|os\.system\(|subprocess\.\w+\(.*shell\s*=\s*True"
+    r"|pickle\.loads?\(|open\(|\.format\(|urllib\.request\.urlopen\("
+)
+
 
 class GrepScanner(BaseScanner):
     """Scans a cloned git repository using regex pattern matching."""
 
+    def __init__(self, repo_url: str, config: str = _DEFAULT_PATTERN, clone_dir: str | None = None):
+        super().__init__(repo_url, clone_dir)
+        self.config = config
+
     def execute_semantic_query(self, query: str) -> List[CodeLocation]:
+        query = query if query != "" else self.config
         repo_path = self.clone()
         logger.debug("Scanning with pattern: %s", query)
 

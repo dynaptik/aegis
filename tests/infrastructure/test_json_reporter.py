@@ -24,14 +24,14 @@ class TestJsonReportWriter:
         path = writer.write(state)
 
         assert path.endswith(".json")
-        assert (tmp_path / path.split("/")[-1]).exists()
+        assert (tmp_path / path.rsplit("/", maxsplit=1)[-1]).exists()
 
     def test_report_contains_metadata(self, tmp_path):
         state = AuditState(target_repository="https://github.com/fake/repo")
         state.status = AuditStatus.COMPLETED
 
         writer = JsonReportWriter(output_dir=str(tmp_path))
-        report = json.loads((tmp_path / writer.write(state).split("/")[-1]).read_text())
+        report = json.loads((tmp_path / writer.write(state).rsplit("/", maxsplit=1)[-1]).read_text())
 
         assert report["aegis_version"] == "0.1.0"
         assert report["target_repository"] == "https://github.com/fake/repo"
@@ -45,7 +45,7 @@ class TestJsonReportWriter:
         state.status = AuditStatus.COMPLETED
 
         writer = JsonReportWriter(output_dir=str(tmp_path))
-        report = json.loads((tmp_path / writer.write(state).split("/")[-1]).read_text())
+        report = json.loads((tmp_path / writer.write(state).rsplit("/", maxsplit=1)[-1]).read_text())
 
         assert len(report["vulnerabilities"]) == 2
         assert report["vulnerabilities"][0]["cwe_id"] == "CWE-89"
@@ -60,7 +60,7 @@ class TestJsonReportWriter:
         state.status = AuditStatus.COMPLETED
 
         writer = JsonReportWriter(output_dir=str(tmp_path))
-        report = json.loads((tmp_path / writer.write(state).split("/")[-1]).read_text())
+        report = json.loads((tmp_path / writer.write(state).rsplit("/", maxsplit=1)[-1]).read_text())
 
         assert report["summary"]["total"] == 3
         assert report["summary"]["verified"] == 2
@@ -73,7 +73,7 @@ class TestJsonReportWriter:
         state.status = AuditStatus.COMPLETED
 
         writer = JsonReportWriter(output_dir=str(tmp_path))
-        report = json.loads((tmp_path / writer.write(state).split("/")[-1]).read_text())
+        report = json.loads((tmp_path / writer.write(state).rsplit("/", maxsplit=1)[-1]).read_text())
 
         assert report["summary"]["total"] == 0
         assert report["vulnerabilities"] == []
@@ -98,7 +98,7 @@ class TestJsonReportWriter:
         state.status = AuditStatus.COMPLETED
 
         writer = JsonReportWriter(output_dir=str(tmp_path))
-        report = json.loads((tmp_path / writer.write(state).split("/")[-1]).read_text())
+        report = json.loads((tmp_path / writer.write(state).rsplit("/", maxsplit=1)[-1]).read_text())
 
         assert report["vulnerabilities"][0]["exploit_code"] == "print('VULNERABILITY CONFIRMED')"
         assert "exploit_code" not in report["vulnerabilities"][1]
@@ -110,4 +110,4 @@ class TestJsonReportWriter:
         writer = JsonReportWriter(output_dir=str(tmp_path))
         path = writer.write(state)
 
-        assert "DSVW" in path.split("/")[-1]
+        assert "DSVW" in path.rsplit("/", maxsplit=1)[-1]

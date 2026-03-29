@@ -44,7 +44,7 @@ def fake_repo(tmp_path):
     return repo_dir
 
 
-def _semgrep_json(results, repo_path=""):
+def _semgrep_json(results):
     """Build a minimal Semgrep JSON output."""
     return json.dumps({"version": "1.0.0", "results": results, "errors": []})
 
@@ -116,7 +116,7 @@ class TestSemgrepScanner:
             ]
             locations = scanner.execute_semantic_query("r/python.lang.security")
 
-        assert locations == []
+        assert not locations
 
     def test_semgrep_not_installed_raises_scanner_error(self, fake_repo, tmp_path):
         scanner = SemgrepScanner(repo_url=str(fake_repo), clone_dir=str(tmp_path / "clone"))
