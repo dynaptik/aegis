@@ -3,25 +3,28 @@
 import logging
 import subprocess
 import uuid
+from pathlib import Path
 
 from aegis.domain.exceptions import SandboxError
 from aegis.ports.sandbox import ExecutionResult, IExploitSandbox
 
 logger = logging.getLogger(__name__)
 
-_DOCKER_IMAGE = "python:3.12-slim"
+_CUSTOM_IMAGE = "aegis-sandbox:latest"
+_DOCKERFILE = Path(__file__).resolve().parents[4] / "Dockerfile.sandbox"
 
 
 class DockerSandbox(IExploitSandbox):
     """Runs exploit scripts inside an isolated Docker container."""
 
-    def __init__(self, image: str = _DOCKER_IMAGE, network: bool = False):
+    def __init__(self, image: str = _CUSTOM_IMAGE, network: bool = False):
         self.image = image
         self.network = network
         self._container_name: str | None = None
         self._ready = False
 
     def setup_environment(self, repo_url: str, commit_hash: str) -> bool:
+        self._ensure_image()
         self._container_name = f"aegis-sandbox-{uuid.uuid4().hex[:12]}"
         network_mode = "bridge" if self.network else "none"
 
@@ -67,7 +70,7 @@ class DockerSandbox(IExploitSandbox):
                     "docker", "exec", self._container_name,
                     "python3", "-c", exploit_code,
                 ],
-                capture_output=True, text=True, timeout=timeout_seconds,
+                capture_output=True, text=True, check=False, timeout=timeout_seconds,
             )
             success = result.returncode == 0
             return ExecutionResult(
@@ -102,3 +105,27 @@ class DockerSandbox(IExploitSandbox):
 
         self._container_name = None
         self._ready = False
+
+    def _ensure_image(self) -> None:
+        """Build the sandbox image if it doesn't exist locally."""
+        try:
+            result = subprocess.run(
+                ["docker", "image", "inspect", self.image],
+                capture_output=True, check=False, timeout=10,
+            )
+            if result.returncode == 0:
+                return
+        except FileNotFoundError as e:
+            raise SandboxError("Docker is not installed or not on PATH") from e
+
+        if not _DOCKERFILE.exists():
+            raise SandboxError(f"Sandbox Dockerfile not found at {_DOCKERFILE}")
+
+        logger.info("Building sandbox image %s …", self.image)
+        try:
+            subprocess.run(
+                ["docker", "build", "-t", self.image, "-f", str(_DOCKERFILE), str(_DOCKERFILE.parent)],
+                capture_output=True, text=True, check=True, timeout=120,
+            )
+        except subprocess.CalledProcessError as e:
+            raise SandboxError(f"Failed to build sandbox image: {e.stderr.strip()}") from e

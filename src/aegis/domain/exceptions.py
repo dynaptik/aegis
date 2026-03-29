@@ -9,6 +9,9 @@ class SecurityAgentError(Exception):
 class InvalidStateTransitionError(SecurityAgentError):
     """Raise when the agent tries to move to an invalid state."""
 
+class InvalidCodeLocationError(SecurityAgentError):
+    """Raised when a CodeLocation has invalid line numbers."""
+
 class InvalidTaintPathError(SecurityAgentError):
     """Raised when a taint path is logically impossible (e.g. sink before source)."""
 

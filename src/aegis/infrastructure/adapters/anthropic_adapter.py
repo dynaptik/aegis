@@ -53,11 +53,7 @@ class AnthropicAdapter(ILlmClient):
             )
 
             # 3. clean the response up (especially if it starts wrapping in markdown anyway)
-            raw_output = response.content[0].text.strip()
-            if raw_output.startswith("```json"):
-                raw_output = raw_output[7:-3].strip()
-            if raw_output.startswith("```"):
-                raw_output = raw_output[3:-3].strip()
+            raw_output = self._strip_markdown(response.content[0].text)
 
             # 4. squeeze it into our domain model
             return response_model.model_validate_json(raw_output)
@@ -89,48 +85,55 @@ class AnthropicAdapter(ILlmClient):
             f"Description: {vulnerability.description}\n"
             f"Target Information: {target_info}\n\n"
             "CONSTRAINTS:\n"
-            "- Use ONLY the Python standard library (urllib, http, socket, xml, etc). Do NOT use requests or any third-party library.\n"
+            "- You may use 'requests' or the Python standard library (urllib, http, socket, etc).\n"
             "- Keep the script under 80 lines. Focus on a single, minimal proof-of-concept.\n"
             "- Print 'VULNERABILITY CONFIRMED' if the exploit succeeds, or 'NOT VULNERABLE' if it fails.\n"
             "- Return ONLY the executable Python code. Do NOT include Markdown formatting or explanations."
         )
 
-        response = self.client.messages.create(
-            model=self.model,
-            max_tokens=4096,
-            temperature=0.4,
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        script = self._strip_markdown(response.content[0].text)
-        error = self._check_syntax(script)
-        if error:
-            logger.debug("Generated script has syntax error: %s — retrying", error)
-            retry_response = self.client.messages.create(
+        try:
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=4096,
-                temperature=0.2,
-                messages=[
-                    {"role": "user", "content": prompt},
-                    {"role": "assistant", "content": script},
-                    {"role": "user", "content": (
-                        f"This script has a syntax error: {error}\n"
-                        "Fix the error and return ONLY the corrected Python code."
-                    )},
-                ]
+                temperature=0.4,
+                messages=[{"role": "user", "content": prompt}]
             )
-            script = self._strip_markdown(retry_response.content[0].text)
-            retry_error = self._check_syntax(script)
-            if retry_error:
-                logger.warning("Retry still produced invalid syntax: %s", retry_error)
 
-        return script
+            script = self._strip_markdown(response.content[0].text)
+            error = self._check_syntax(script)
+            if error:
+                logger.debug("Generated script has syntax error: %s — retrying", error)
+                retry_response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    temperature=0.2,
+                    messages=[
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": script},
+                        {"role": "user", "content": (
+                            f"This script has a syntax error: {error}\n"
+                            "Fix the error and return ONLY the corrected Python code."
+                        )},
+                    ]
+                )
+                script = self._strip_markdown(retry_response.content[0].text)
+                retry_error = self._check_syntax(script)
+                if retry_error:
+                    logger.warning("Retry still produced invalid syntax: %s", retry_error)
+
+            return script
+        except LlmError:
+            raise
+        except Exception as e:
+            raise LlmError(f"Exploit generation failed: {e}") from e
 
     @staticmethod
     def _strip_markdown(text: str) -> str:
         text = text.strip()
         if text.startswith("```python"):
             text = text[9:-3].strip()
+        elif text.startswith("```json"):
+            text = text[7:-3].strip()
         elif text.startswith("```"):
             text = text[3:-3].strip()
         return text

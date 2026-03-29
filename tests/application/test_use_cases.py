@@ -11,6 +11,43 @@ from aegis.ports.sandbox import IExploitSandbox, ExecutionResult
 from aegis.application.use_cases import SecurityAuditorUseCase
 
 #
+# Unit tests for batch helpers
+#
+def test_group_by_file_single_file():
+    locs = [
+        CodeLocation(file_path="a.py", start_line=1, end_line=3, snippet="x"),
+        CodeLocation(file_path="a.py", start_line=10, end_line=12, snippet="y"),
+    ]
+    groups = SecurityAuditorUseCase._group_by_file(locs)
+    assert list(groups.keys()) == ["a.py"]
+    assert len(groups["a.py"]) == 2
+
+
+def test_group_by_file_multiple_files():
+    locs = [
+        CodeLocation(file_path="a.py", start_line=1, end_line=3, snippet="x"),
+        CodeLocation(file_path="b.py", start_line=5, end_line=7, snippet="y"),
+        CodeLocation(file_path="a.py", start_line=10, end_line=12, snippet="z"),
+    ]
+    groups = SecurityAuditorUseCase._group_by_file(locs)
+    assert set(groups.keys()) == {"a.py", "b.py"}
+    assert len(groups["a.py"]) == 2
+    assert len(groups["b.py"]) == 1
+
+
+def test_format_batch():
+    locs = [
+        CodeLocation(file_path="app.py", start_line=5, end_line=7, snippet="eval(x)"),
+        CodeLocation(file_path="app.py", start_line=20, end_line=22, snippet="exec(y)"),
+    ]
+    result = SecurityAuditorUseCase._format_batch("app.py", locs)
+    assert result.startswith("File: app.py")
+    assert "--- lines 5-7 ---" in result
+    assert "eval(x)" in result
+    assert "--- lines 20-22 ---" in result
+    assert "exec(y)" in result
+
+#
 # Mocking the adapters
 #
 _DEFAULT_LOCATION = CodeLocation(
@@ -20,14 +57,14 @@ _DEFAULT_LOCATION = CodeLocation(
     snippet="cursor.execute(f'SELECT * FROM users WHERE id = {user_input}')"
 )
 
-def _make_vuln(vuln_id="VULN-001", snippet="x=1", title="SQL Injection"):
+def _make_vuln(vuln_id="VULN-001", snippet="x=1", title="SQL Injection", severity=Severity.HIGH):
     loc = CodeLocation(file_path="src/db.py", start_line=10, end_line=12, snippet=snippet)
     return Vulnerability(
         id=vuln_id,
         cwe_id="CWE-89",
         title=title,
         description="Unsanitized user input in query.",
-        severity=Severity.HIGH,
+        severity=severity,
         taint_path=TaintPath(source=loc, sink=loc),
         is_verified=False
     )
@@ -110,6 +147,7 @@ def test_successful_audit_loop():
     vuln = final_state.identified_vulnerabilities[0]
     assert vuln.id == "VULN-001"
     assert vuln.is_verified is True
+    assert vuln.exploit_code is not None
     assert sandbox.teardown_called is True
 
 def test_audit_loop_verification_fails():
@@ -126,6 +164,7 @@ def test_audit_loop_verification_fails():
     assert final_state.status == AuditStatus.COMPLETED
     assert len(final_state.identified_vulnerabilities) == 1
     assert final_state.identified_vulnerabilities[0].is_verified is False
+    assert final_state.identified_vulnerabilities[0].exploit_code is None
     assert sandbox.teardown_called is True
 
 #
@@ -277,3 +316,59 @@ def test_multiple_vulns_partial_verification():
     assert final_state.identified_vulnerabilities[1].is_verified is False
     assert final_state.identified_vulnerabilities[2].is_verified is True
     assert sandbox.teardown_called is True
+
+
+def test_analysis_batches_by_file():
+    """Locations from the same file should be analyzed in a single LLM call."""
+    locations = [
+        CodeLocation(file_path="src/db.py", start_line=1, end_line=3, snippet="eval(a)"),
+        CodeLocation(file_path="src/db.py", start_line=10, end_line=12, snippet="exec(b)"),
+        CodeLocation(file_path="src/auth.py", start_line=5, end_line=7, snippet="exec(c)"),
+    ]
+
+    analyze_calls = []
+    class TrackingLlm(MockLlmClient):
+        def analyze_code_for_vulnerabilities(self, code_snippet, context):
+            analyze_calls.append(code_snippet)
+            return [_make_vuln(f"VULN-{len(analyze_calls)}", title=f"Vuln {len(analyze_calls)}")]
+
+    use_case = SecurityAuditorUseCase(
+        llm_client=TrackingLlm(vulns=[]),
+        scanner=MockScanner(locations=locations),
+        sandbox=MockSandbox(),
+    )
+
+    state = use_case.run_audit(target_repo="https://github.com/fake/repo", semantic_query="test")
+
+    assert len(analyze_calls) == 2
+    assert "eval(a)" in analyze_calls[0]
+    assert "exec(b)" in analyze_calls[0]
+    assert "exec(c)" in analyze_calls[1]
+    assert state.status == AuditStatus.COMPLETED
+
+
+def test_verification_orders_by_severity():
+    """Critical and high vulns should be verified before medium and low."""
+    vulns = [
+        _make_vuln("V-LOW", title="Low issue", severity=Severity.LOW),
+        _make_vuln("V-CRIT", title="Critical issue", severity=Severity.CRITICAL),
+        _make_vuln("V-MED", title="Medium issue", severity=Severity.MEDIUM),
+        _make_vuln("V-HIGH", title="High issue", severity=Severity.HIGH),
+    ]
+
+    verification_order = []
+    class OrderTrackingLlm(MockLlmClient):
+        def generate_exploit_script(self, vulnerability, target_info):
+            verification_order.append(vulnerability.id)
+            return "print('test')"
+
+    use_case = SecurityAuditorUseCase(
+        llm_client=OrderTrackingLlm(vulns=vulns),
+        scanner=MockScanner(),
+        sandbox=MockSandbox(should_succeed=True),
+    )
+
+    state = use_case.run_audit(target_repo="https://github.com/fake/repo", semantic_query="test")
+
+    assert state.status == AuditStatus.COMPLETED
+    assert verification_order == ["V-CRIT", "V-HIGH", "V-MED", "V-LOW"]

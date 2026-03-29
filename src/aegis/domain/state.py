@@ -2,7 +2,7 @@
 from typing import List
 from enum import Enum
 from pydantic import BaseModel, Field
-from aegis.domain.models import Vulnerability
+from aegis.domain.models import SEVERITY_RANK, Vulnerability
 from aegis.domain.exceptions import InvalidStateTransitionError
 
 class AuditStatus(str, Enum):
@@ -34,7 +34,6 @@ class AuditState(BaseModel):
     def deduplicate(self) -> int:
         """Remove duplicate vulnerabilities, keeping the highest severity.
         Returns the number of duplicates removed."""
-        severity_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1}
         seen: dict[str, int] = {}
         unique: list[Vulnerability] = []
         for vuln in self.identified_vulnerabilities:  # pylint: disable=no-member
@@ -42,7 +41,7 @@ class AuditState(BaseModel):
             if key in seen:
                 existing_idx = seen[key]
                 existing = unique[existing_idx]
-                if severity_rank.get(vuln.severity.value, 0) > severity_rank.get(existing.severity.value, 0):
+                if SEVERITY_RANK.get(vuln.severity.value, 0) > SEVERITY_RANK.get(existing.severity.value, 0):
                     unique[existing_idx] = vuln
             else:
                 seen[key] = len(unique)

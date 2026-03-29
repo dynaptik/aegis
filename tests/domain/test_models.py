@@ -1,8 +1,8 @@
 # tests/domain/test_models.py
 
 import pytest
-from pydantic import ValidationError
 from aegis.domain.models import CodeLocation, Severity, Vulnerability, TaintPath
+from aegis.domain.exceptions import InvalidCodeLocationError
 
 def test_code_location_valid():
     """Test that a logically sound code location is created successfully."""
@@ -16,16 +16,14 @@ def test_code_location_valid():
     assert loc.file_path == "src/main.py"
 
 def test_code_location_invalid_lines():
-    """Test that pydantic catches all mathematically impossible line numbers."""
-    with pytest.raises(ValidationError) as exc_info:
+    """Test that domain exception is raised for impossible line numbers."""
+    with pytest.raises(InvalidCodeLocationError, match="start_line cannot be greater than end_line"):
         CodeLocation(
-        file_path="src/main.py",
-        start_line=50, # starts after it ends, should be caught
-        end_line=10,
-        snippet="def hello():\n    pass"
-    )
-
-    assert "start_line cannot be greater than end_line" in str(exc_info.value)
+            file_path="src/main.py",
+            start_line=50,
+            end_line=10,
+            snippet="def hello():\n    pass"
+        )
 
 def test_vulnerability_creation():
     """Test standard instantiation of a Vulnerability entity."""

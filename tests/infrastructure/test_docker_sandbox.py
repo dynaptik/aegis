@@ -36,7 +36,11 @@ class TestDockerSandboxSetup:
 
     @patch("aegis.infrastructure.adapters.docker_sandbox.subprocess.run")
     def test_setup_failure_raises_sandbox_error(self, mock_run):
-        mock_run.side_effect = subprocess.CalledProcessError(1, "docker", stderr="image not found")
+        # First call: image inspect succeeds; second call: docker run fails
+        mock_run.side_effect = [
+            MagicMock(returncode=0),
+            subprocess.CalledProcessError(1, "docker", stderr="image not found"),
+        ]
         sandbox = DockerSandbox()
 
         with pytest.raises(SandboxError, match="Failed to start"):
@@ -47,7 +51,10 @@ class TestDockerSandboxSetup:
 
     @patch("aegis.infrastructure.adapters.docker_sandbox.subprocess.run")
     def test_setup_timeout_raises_sandbox_error(self, mock_run):
-        mock_run.side_effect = subprocess.TimeoutExpired("docker", 60)
+        mock_run.side_effect = [
+            MagicMock(returncode=0),
+            subprocess.TimeoutExpired("docker", 60),
+        ]
         sandbox = DockerSandbox()
 
         with pytest.raises(SandboxError, match="Timed out"):
@@ -60,6 +67,38 @@ class TestDockerSandboxSetup:
 
         with pytest.raises(SandboxError, match="not installed"):
             sandbox.setup_environment(repo_url="https://github.com/fake/repo", commit_hash="HEAD")
+
+
+class TestDockerSandboxImageBuild:
+
+    @patch("aegis.infrastructure.adapters.docker_sandbox.subprocess.run")
+    def test_builds_image_when_missing(self, mock_run):
+        # First call: image inspect returns non-zero (not found)
+        # Second call: docker build succeeds
+        # Third call: docker run succeeds
+        mock_run.side_effect = [
+            MagicMock(returncode=1),  # image inspect
+            MagicMock(returncode=0),  # docker build
+            MagicMock(returncode=0),  # docker run
+        ]
+        sandbox = DockerSandbox()
+        sandbox.setup_environment(repo_url="https://github.com/fake/repo", commit_hash="HEAD")
+
+        build_call = mock_run.call_args_list[1][0][0]
+        assert build_call[0:3] == ["docker", "build", "-t"]
+
+    @patch("aegis.infrastructure.adapters.docker_sandbox.subprocess.run")
+    def test_skips_build_when_image_exists(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0)
+        sandbox = DockerSandbox()
+        sandbox.setup_environment(repo_url="https://github.com/fake/repo", commit_hash="HEAD")
+
+        # Two calls: image inspect + docker run (no build)
+        assert mock_run.call_count == 2
+        inspect_call = mock_run.call_args_list[0][0][0]
+        assert inspect_call[0:3] == ["docker", "image", "inspect"]
+        run_call = mock_run.call_args_list[1][0][0]
+        assert run_call[0:3] == ["docker", "run", "-d"]
 
 
 class TestDockerSandboxRunExploit:

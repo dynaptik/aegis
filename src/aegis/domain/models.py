@@ -6,12 +6,16 @@
 from typing import List, Optional
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
+from aegis.domain.exceptions import InvalidCodeLocationError
 
 class Severity(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
+# TODO not sure if I will ever need informational level?
+SEVERITY_RANK: dict[str, int] = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 
 class CodeLocation(BaseModel):
     """Represents a specific physical location in the codebase."""
@@ -23,8 +27,7 @@ class CodeLocation(BaseModel):
     @model_validator(mode='after')
     def check_line_numbers(self):
         if self.start_line > self.end_line:
-            # TODO I need to create something in src/domain/exceptions for this
-            raise ValueError("start_line cannot be greater than end_line")
+            raise InvalidCodeLocationError("start_line cannot be greater than end_line")
         return self
 
 class TaintPath(BaseModel):
@@ -42,6 +45,7 @@ class Vulnerability(BaseModel):
     severity: Severity
     taint_path: Optional[TaintPath] = None
     is_verified: bool = Field(default=False, description="True if the sandbox exploit succeeded")
+    exploit_code: Optional[str] = Field(default=None, description="The exploit script that confirmed this vulnerability")
 
     @property
     def dedup_key(self) -> str:

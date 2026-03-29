@@ -1,7 +1,7 @@
 # src/application/use_cases.py
 
 import logging
-from aegis.domain.models import CodeLocation
+from aegis.domain.models import SEVERITY_RANK, CodeLocation
 from aegis.domain.state import AuditState, AuditStatus
 from aegis.domain.exceptions import SecurityAgentError
 from aegis.ports.llm import ILlmClient
@@ -67,20 +67,41 @@ class SecurityAuditorUseCase:
 
     def _analyze(self, state: AuditState, locations: list[CodeLocation], target_repo: str) -> None:
         state.transition_to(AuditStatus.ANALYZING)
-        logger.info("Phase 2/3: Analyzing %d locations with LLM …", len(locations))
+        batches = self._group_by_file(locations)
+        logger.info("Phase 2/3: Analyzing %d locations in %d batches …", len(locations), len(batches))
         context = f"Target Repository: {target_repo}\nFound {len(locations)} potential sinks."
-        for loc in locations:
+        for file_path, locs in batches.items():
+            combined = self._format_batch(file_path, locs)
             findings = self.llm.analyze_code_for_vulnerabilities(
-                code_snippet=loc.snippet,
+                code_snippet=combined,
                 context=context
             )
             for finding in findings:
                 state.add_vulnerability(finding)
         logger.info("Identified %d potential vulnerabilities", len(state.identified_vulnerabilities))
 
+    @staticmethod
+    def _group_by_file(locations: list[CodeLocation]) -> dict[str, list[CodeLocation]]:
+        groups: dict[str, list[CodeLocation]] = {}
+        for loc in locations:
+            groups.setdefault(loc.file_path, []).append(loc)
+        return groups
+
+    @staticmethod
+    def _format_batch(file_path: str, locations: list[CodeLocation]) -> str:
+        parts = [f"File: {file_path}"]
+        for loc in locations:
+            parts.append(f"\n--- lines {loc.start_line}-{loc.end_line} ---\n{loc.snippet}")
+        return "\n".join(parts)
+
     def _verify(self, state: AuditState, target_repo: str) -> None:
         state.transition_to(AuditStatus.VERIFYING)
-        vulns = state.identified_vulnerabilities
+        vulns = sorted(
+            state.identified_vulnerabilities,
+            key=lambda v: SEVERITY_RANK.get(v.severity.value, 0),
+            reverse=True,
+        )
+        state.identified_vulnerabilities = vulns
         logger.info("Phase 3/3: Verifying %d vulnerabilities in sandbox …", len(vulns))
         self.sandbox.setup_environment(repo_url=target_repo, commit_hash="HEAD")
         verified_count = 0
@@ -94,6 +115,7 @@ class SecurityAuditorUseCase:
                 result = self.sandbox.run_exploit(exploit_code)
                 if result.success:
                     vuln.is_verified = True
+                    vuln.exploit_code = exploit_code
                     verified_count += 1
                 elif "is not running" in result.stderr:
                     logger.error("Sandbox container died — aborting remaining verifications")
