@@ -221,3 +221,7 @@ __marimo__/
 # Reports
 reports
 reports/
+
+# Benchmark results (generated, not committed)
+tests/benchmarks/results/
+!tests/benchmarks/results/.gitkeep

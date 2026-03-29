@@ -52,3 +52,5 @@ class Vulnerability(BaseModel):
         """Identity key for deduplication: CWE + normalized title."""
         normalized = self.title.lower().replace("'", "").replace('"', "").split()
         return f"{self.cwe_id}|{' '.join(normalized)}"
+
+# TODO add ExploitAttempt with payload_code: str and target_file: str attributes

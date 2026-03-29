@@ -1,0 +1,104 @@
+# Ground truth for https://github.com/stamparm/DSVW
+# Damn Small Vulnerable Web application — single-file Python web server
+# Derived from DSVW source analysis + 3 verified AEGIS scan reports
+
+repository: "https://github.com/stamparm/DSVW"
+description: "Damn Small Vulnerable Web application for security testing"
+
+vulnerabilities:
+  # --- SQL Injection (3 distinct instances) ---
+  - id: "DSVW-001"
+    cwe_id: "CWE-89"
+    title: "SQL Injection via 'id' parameter"
+    severity: "critical"
+    keywords: ["id", "parameter"]
+    description: "The 'id' query parameter is concatenated into a SELECT query"
+
+  - id: "DSVW-002"
+    cwe_id: "CWE-89"
+    title: "SQL Injection via 'comment' parameter (INSERT)"
+    severity: "critical"
+    keywords: ["comment"]
+    description: "The 'comment' parameter is interpolated into an INSERT statement"
+
+  - id: "DSVW-003"
+    cwe_id: "CWE-89"
+    title: "SQL Injection via 'password' parameter in /login"
+    severity: "critical"
+    keywords: ["password"]
+    description: "The 'password' parameter in /login is concatenated into SQL"
+
+  # --- Insecure Deserialization ---
+  - id: "DSVW-004"
+    cwe_id: "CWE-502"
+    title: "Insecure Deserialization via pickle.loads"
+    severity: "critical"
+    keywords: ["pickle"]
+    alt_keywords: ["object", "deserialization"]
+    description: "The 'object' parameter is passed directly to pickle.loads()"
+
+  # --- OS Command Injection ---
+  - id: "DSVW-005"
+    cwe_id: "CWE-78"
+    title: "OS Command Injection via 'domain' parameter"
+    severity: "critical"
+    keywords: ["domain"]
+    description: "The 'domain' parameter is concatenated into a shell command with shell=True"
+
+  # --- XXE ---
+  - id: "DSVW-006"
+    cwe_id: "CWE-611"
+    title: "XXE Injection via 'xml' parameter"
+    severity: "critical"
+    keywords: ["xml"]
+    description: "The 'xml' parameter is parsed with dangerous lxml settings (resolve_entities, load_dtd)"
+
+  # --- Remote Code Execution ---
+  - id: "DSVW-007"
+    cwe_id: "CWE-94"
+    title: "RCE via 'include' parameter (exec)"
+    severity: "critical"
+    keywords: ["include"]
+    description: "The 'include' parameter content is fetched and executed via exec()"
+
+  # --- Path Traversal ---
+  - id: "DSVW-008"
+    cwe_id: "CWE-22"
+    title: "Path Traversal via 'path' parameter"
+    severity: "high"
+    keywords: ["path"]
+    description: "The 'path' parameter allows reading arbitrary local files"
+
+  # --- SSRF ---
+  - id: "DSVW-009"
+    cwe_id: "CWE-918"
+    title: "SSRF via 'path' parameter"
+    severity: "high"
+    keywords: ["ssrf"]
+    alt_keywords: ["request", "forgery"]
+    description: "When 'path' contains '://', it is passed to urlopen() enabling SSRF"
+
+  # --- XSS (3 distinct instances) ---
+  - id: "DSVW-010"
+    cwe_id: "CWE-79"
+    title: "Reflected XSS via 'v' parameter"
+    severity: "high"
+    keywords: ["v", "parameter"]
+    alt_keywords: ["reflected", "v"]
+    description: "The 'v' parameter value is reflected into HTML without encoding"
+
+  - id: "DSVW-011"
+    cwe_id: "CWE-79"
+    title: "Stored XSS via 'comment' parameter"
+    severity: "high"
+    keywords: ["stored", "comment"]
+    alt_keywords: ["comment"]
+    description: "Comments are stored in DB and rendered without HTML encoding"
+
+  - id: "DSVW-012"
+    cwe_id: "CWE-79"
+    title: "JSONP Callback Injection (XSS)"
+    severity: "medium"
+    keywords: ["callback"]
+    alt_keywords: ["jsonp"]
+    description: "The 'callback' parameter enables JSONP-based XSS"
