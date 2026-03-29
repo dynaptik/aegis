@@ -9,6 +9,9 @@ dependencies = [
     "pydantic>=2.12.5",
 ]
 
+[project.scripts]
+aegis = "aegis.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
